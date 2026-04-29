@@ -1,0 +1,6 @@
+arduino_secrets.h
+build/
+*.hex
+*.bin
+*.elf
+
