@@ -1,10 +1,11 @@
 # Water Bay Monitor
 
-Arduino UNO R4 WiFi firmware for monitoring four DS18B20 temperature sensors near the van water pump, accumulator tank, and water lines.
+Arduino firmware for monitoring four DS18B20 temperature sensors near the van water pump, accumulator tank, and water lines.
 
 ## Hardware
 
-- Arduino UNO R4 WiFi
+- Arduino UNO R3, recommended for sensor/fan/CAN-only use
+- Arduino UNO R4 WiFi, optional if direct Wi-Fi/Twilio SMS is wanted on this node
 - Seeed Studio CAN-BUS Shield V2.0
 - Four DS18B20 temperature sensors on one OneWire bus
 - Noctua NF-A8 PWM fan
@@ -25,9 +26,8 @@ The Noctua fan motor power should come from a suitable 12V supply. The fan PWM c
 - Fan is off above 42 F.
 - Fan starts below 40 F at a slow PWM value.
 - Fan ramps to full speed by 35 F.
-- SMS alert is attempted below 34 F.
-- SMS alerts re-arm once the coldest valid sensor rises to 36 F.
-- SMS alerts are rate-limited to once every 6 hours.
+- On an UNO R3, low-temperature SMS should be handled by the display app after it receives the CAN frames.
+- On an UNO R4 WiFi, direct SMS is attempted below 34 F, re-arms above 36 F, and is rate-limited to once every 6 hours.
 
 ## CAN Frames
 
@@ -40,7 +40,7 @@ All multi-byte signed values are little-endian Fahrenheit tenths.
 | 0-1 | Coldest valid temperature in tenths F, or `INT16_MIN` if none valid |
 | 2 | Fan PWM, 0-255 |
 | 3 | Number of discovered sensors |
-| 4 | Flags: bit 0 Wi-Fi connected, bit 1 SMS armed |
+| 4 | Flags: bit 0 Wi-Fi connected, bit 1 SMS armed; both are 0 on UNO R3 builds |
 | 5-7 | Reserved |
 
 ### `0x541` through `0x544` Sensor Temperatures
@@ -58,11 +58,19 @@ All multi-byte signed values are little-endian Fahrenheit tenths.
 
 Credentials live in `WaterBayMonitor/arduino_secrets.h`, which is ignored by git. `arduino_secrets.h.example` shows the expected shape.
 
-Set `TWILIO_TO_NUMBER` before relying on SMS alerts. The Twilio phone number is only the sender number; Twilio also needs a destination number.
+The UNO R3 build does not use Wi-Fi or Twilio credentials. Set `TWILIO_TO_NUMBER` before relying on direct UNO R4 WiFi SMS alerts. The Twilio phone number is only the sender number; Twilio also needs a destination number.
 
 Because the Twilio token was shared in chat, rotate it in Twilio after the first successful test and update `arduino_secrets.h`.
 
 ## Build
+
+For the UNO R3:
+
+```sh
+arduino-cli compile --fqbn arduino:avr:uno WaterBayMonitor
+```
+
+For the UNO R4 WiFi:
 
 ```sh
 arduino-cli compile --fqbn arduino:renesas_uno:unor4wifi WaterBayMonitor
@@ -70,7 +78,14 @@ arduino-cli compile --fqbn arduino:renesas_uno:unor4wifi WaterBayMonitor
 
 ## Upload
 
+For the UNO R3:
+
+```sh
+arduino-cli upload -p /dev/cu.usbmodemXXXX --fqbn arduino:avr:uno WaterBayMonitor
+```
+
+For the UNO R4 WiFi:
+
 ```sh
 arduino-cli upload -p /dev/cu.usbmodemXXXX --fqbn arduino:renesas_uno:unor4wifi WaterBayMonitor
 ```
-

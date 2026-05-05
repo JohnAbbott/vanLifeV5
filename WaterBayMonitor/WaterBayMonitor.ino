@@ -3,11 +3,16 @@
 #include <mcp2515_can.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+
+#if defined(ARDUINO_UNOR4_WIFI)
+#define DIRECT_TWILIO_SMS 1
 #include <WiFiS3.h>
 #include <WiFiSSLClient.h>
 #include <ArduinoHttpClient.h>
-
 #include "arduino_secrets.h"
+#else
+#define DIRECT_TWILIO_SMS 0
+#endif
 
 // Hardware pins. Keep CAN pins aligned with the Seeed CAN-BUS Shield V2.0 jumpers.
 const uint8_t ONE_WIRE_PIN = 4;
@@ -18,14 +23,18 @@ const uint8_t CAN_INT_PIN = 2;
 const uint32_t SERIAL_BAUD = 115200;
 const unsigned long SENSOR_INTERVAL_MS = 5000;
 const unsigned long CAN_INTERVAL_MS = 5000;
+#if DIRECT_TWILIO_SMS
 const unsigned long WIFI_RETRY_INTERVAL_MS = 30000;
 const unsigned long SMS_COOLDOWN_MS = 6UL * 60UL * 60UL * 1000UL;
+#endif
 
 const float FAN_START_F = 40.0;
 const float FAN_FULL_F = 35.0;
 const float FAN_OFF_F = 42.0;
+#if DIRECT_TWILIO_SMS
 const float SMS_ALERT_F = 34.0;
 const float SMS_REARM_F = 36.0;
+#endif
 const uint8_t FAN_MIN_PWM = 80;
 
 const uint16_t CAN_ID_BASE = 0x541;
@@ -35,18 +44,24 @@ const uint8_t SENSOR_COUNT = 4;
 OneWire oneWire(ONE_WIRE_PIN);
 DallasTemperature sensors(&oneWire);
 mcp2515_can CAN0(CAN_CS_PIN);
+#if DIRECT_TWILIO_SMS
 WiFiSSLClient sslClient;
+#endif
 
 float temperatureF[SENSOR_COUNT];
 DeviceAddress sensorAddresses[SENSOR_COUNT];
 uint8_t discoveredSensors = 0;
 uint8_t fanPwm = 0;
 bool canReady = false;
+#if DIRECT_TWILIO_SMS
 bool smsArmed = true;
+#endif
 unsigned long lastSensorReadMs = 0;
 unsigned long lastCanSendMs = 0;
+#if DIRECT_TWILIO_SMS
 unsigned long lastWifiAttemptMs = 0;
 unsigned long lastSmsMs = 0;
+#endif
 
 bool isValidTemperature(float value) {
   return value > -100.0 && value < 180.0;
@@ -106,6 +121,7 @@ String urlEncode(const String &value) {
   return encoded;
 }
 
+#if DIRECT_TWILIO_SMS
 void connectWifiIfNeeded() {
   if (WiFi.status() == WL_CONNECTED) {
     return;
@@ -166,10 +182,12 @@ bool sendTwilioSms(float coldestF) {
   http.stop();
   return statusCode >= 200 && statusCode < 300;
 }
+#endif
 
 void discoverTemperatureSensors() {
   sensors.begin();
-  discoveredSensors = min<uint8_t>(sensors.getDeviceCount(), SENSOR_COUNT);
+  uint8_t sensorCount = sensors.getDeviceCount();
+  discoveredSensors = sensorCount < SENSOR_COUNT ? sensorCount : SENSOR_COUNT;
 
   for (uint8_t i = 0; i < SENSOR_COUNT; i++) {
     temperatureF[i] = NAN;
@@ -218,6 +236,7 @@ void updateFan(float coldestF) {
   analogWrite(FAN_PWM_PIN, fanPwm);
 }
 
+#if DIRECT_TWILIO_SMS
 void handleSmsAlert(float coldestF) {
   if (isnan(coldestF)) {
     return;
@@ -236,6 +255,7 @@ void handleSmsAlert(float coldestF) {
     }
   }
 }
+#endif
 
 void setupCan() {
   pinMode(CAN_INT_PIN, INPUT);
@@ -272,12 +292,14 @@ void sendStatusFrame(float coldestF) {
                               ? INT16_MIN
                               : static_cast<int16_t>(lround(coldestF * 10.0));
   uint8_t flags = 0;
+#if DIRECT_TWILIO_SMS
   if (WiFi.status() == WL_CONNECTED) {
     flags |= 0x01;
   }
   if (smsArmed) {
     flags |= 0x02;
   }
+#endif
 
   uint8_t payload[8] = {
       static_cast<uint8_t>(coldestTenths & 0xFF),
@@ -312,19 +334,25 @@ void setup() {
 
   discoverTemperatureSensors();
   setupCan();
+#if DIRECT_TWILIO_SMS
   connectWifiIfNeeded();
+#endif
 }
 
 void loop() {
   unsigned long now = millis();
+#if DIRECT_TWILIO_SMS
   connectWifiIfNeeded();
+#endif
 
   if (now - lastSensorReadMs >= SENSOR_INTERVAL_MS) {
     lastSensorReadMs = now;
     readTemperatures();
     float coldestF = coldestValidTemperature();
     updateFan(coldestF);
+#if DIRECT_TWILIO_SMS
     handleSmsAlert(coldestF);
+#endif
   }
 
   if (now - lastCanSendMs >= CAN_INTERVAL_MS) {

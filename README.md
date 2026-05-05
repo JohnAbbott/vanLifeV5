@@ -17,12 +17,12 @@ The main projects in this repository are:
 - A pump relay toggle
 - Auto-sleep / touch-to-wake display behavior
 
-`WaterBayMonitor/` contains an `Arduino UNO R4 WiFi` + `Seeed Studio CAN-BUS Shield V2.0` application with:
+`WaterBayMonitor/` contains an `Arduino UNO R3` or `Arduino UNO R4 WiFi` + `Seeed Studio CAN-BUS Shield V2.0` application with:
 
 - Four DS18B20 water bay temperature sensors
 - CAN messages for the display app
 - PWM fan control for freeze protection
-- Twilio SMS alerting for low-temperature events
+- Twilio SMS alerting for low-temperature events when built for UNO R4 WiFi; otherwise the display app should handle alerts from CAN data
 
 ## Main Files
 
@@ -35,6 +35,7 @@ The main projects in this repository are:
 
 - `Arduino GIGA R1 WiFi`
 - `GIGA Display Shield`
+- `Arduino UNO R3`
 - `Arduino UNO R4 WiFi`
 - `Seeed Studio CAN-BUS Shield V2.0`
 - `DS18B20` temperature sensors
